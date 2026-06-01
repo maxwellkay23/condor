@@ -1,0 +1,13 @@
+[package]
+name = "condor-server"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+condor-common.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+clap.workspace = true
+redis.workspace = true
+tonic.workspace = true
+uuid.workspace = true

@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package condor_common;
+
+service MessageService {
+    rpc CreateJobGroup (CreateJobGroupRequest) returns (CreateJobGroupResponse);
+    rpc GetJobGroup (GetJobGroupRequest) returns (GetJobGroupResponse);
+    rpc CreateJob (CreateJobRequest) returns (CreateJobResponse);
+    rpc GetJob (GetJobRequest) returns (GetJobResponse);
+    rpc UpdateJobStatus (UpdateJobStatusRequest) returns (UpdateJobStatusResponse);
+    rpc PopJobFromGroup (PopJobFromGroupRequest) returns (PopJobFromGroupResponse);
+}
+
+message CreateJobGroupRequest {
+    string name = 1;
+    string template = 2;
+}
+
+message CreateJobGroupResponse {
+    string id = 1;
+}
+
+message GetJobGroupRequest {
+    string id = 1;
+}
+
+message GetJobGroupResponse {
+    string id = 1;
+    string name = 2;
+    string template = 3;
+}
+
+message CreateJobRequest {
+    string group_id = 1;
+    string name = 2;
+    map<string, string> parameters = 3;
+}
+
+message CreateJobResponse {
+    string id = 1;
+}
+
+message GetJobRequest {
+    string id = 1;
+}
+
+message GetJobResponse {
+    string id = 1;
+    string group_id = 2;
+    string name = 3;
+    map<string, string> parameters = 4;
+    JobStatus status = 5;
+}
+
+enum JobStatus {
+    JOB_STATUS_CREATED = 0;
+    JOB_STATUS_RUNNING = 1;
+    JOB_STATUS_FAILED = 2;
+    JOB_STATUS_COMPLETED = 3;
+}
+
+message UpdateJobStatusRequest {
+    string id = 1;
+    JobStatus status = 2;
+}
+
+message UpdateJobStatusResponse {
+    bool success = 1;
+}
+
+message PopJobFromGroupRequest {
+    string group_id = 1;
+}
+
+message PopJobFromGroupResponse {
+    string job_id = 1;
+}
