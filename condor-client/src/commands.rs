@@ -7,6 +7,14 @@ pub enum Command {
     GetJobGroup {
         id: String,
     },
+    UpdateJobGroup {
+        id: String,
+        template: String,
+    },
+    ListJobGroups,
+    DeleteJobGroup {
+        id: String,
+    },
     CreateJob {
         group_id: String,
         name: String,
@@ -16,21 +24,17 @@ pub enum Command {
     GetJob {
         id: String,
     },
+    ListJobs {
+        group_id: String,
+    },
+    DeleteJob {
+        id: String,
+    },
     UpdateJobStatus {
         id: String,
         status: String,
     },
     RunJobs {
         group_id: String,
-    },
-    ListSessions {
-        #[arg(long, default_value = "http://127.0.0.1:4096")]
-        url: String,
-    },
-    ListMessages {
-        #[arg(long, default_value = "http://127.0.0.1:4096")]
-        url: String,
-        #[arg(long)]
-        session_id: String,
     },
 }

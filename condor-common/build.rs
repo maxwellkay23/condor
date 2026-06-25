@@ -93,13 +93,16 @@ fn fix_value(value: &mut serde_json::Value) {
 
             // Flatten anyOf in response content schemas
             let needs_flatten = map.contains_key("content")
-                && map.get("content").and_then(|c| c.as_object()).is_some_and(|mm| {
-                    mm.values().any(|m| {
-                        m.get("schema")
-                            .and_then(|s| s.as_object())
-                            .is_some_and(|s| s.contains_key("anyOf"))
-                    })
-                });
+                && map
+                    .get("content")
+                    .and_then(|c| c.as_object())
+                    .is_some_and(|mm| {
+                        mm.values().any(|m| {
+                            m.get("schema")
+                                .and_then(|s| s.as_object())
+                                .is_some_and(|s| s.contains_key("anyOf"))
+                        })
+                    });
 
             if needs_flatten {
                 if let Some(content) = map.get_mut("content").and_then(|c| c.as_object_mut()) {
@@ -175,9 +178,7 @@ fn walk_remove_refs(value: &mut serde_json::Value, ref_str: &str) {
             let has_anyof = map.contains_key("anyOf");
             if has_anyof {
                 if let Some(arr) = map.get_mut("anyOf").and_then(|a| a.as_array_mut()) {
-                    arr.retain(|item| {
-                        item.get("$ref").and_then(|r| r.as_str()) != Some(ref_str)
-                    });
+                    arr.retain(|item| item.get("$ref").and_then(|r| r.as_str()) != Some(ref_str));
                 }
             }
             for v in map.values_mut() {
