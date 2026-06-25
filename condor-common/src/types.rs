@@ -59,6 +59,7 @@ pub struct JobGroup {
     pub id: String,
     pub name: String,
     pub template: String,
+    pub current_version: i32,
 }
 
 #[derive(Debug, Clone)]
@@ -68,4 +69,5 @@ pub struct Job {
     pub name: String,
     pub parameters: HashMap<String, String>,
     pub status: JobStatus,
+    pub template_version: i32,
 }

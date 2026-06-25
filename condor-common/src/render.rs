@@ -34,7 +34,6 @@ mod tests {
     fn test_render_with_missing_variable() {
         let params = HashMap::new();
         let result = render_template("Hello {{ name }}!", &params).unwrap();
-        // minijinja renders undefined variables as empty string
         assert_eq!(result, "Hello !");
     }
 

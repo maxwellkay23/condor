@@ -1,10 +1,8 @@
 use clap::Parser;
 use condor_common::CondorGrpcClient;
 use condor_common::JobStatus;
-use condor_common::OpencodeClient;
 
 mod commands;
-mod render;
 
 use commands::Command;
 
@@ -34,9 +32,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut client = CondorGrpcClient::connect(&addr).await?;
             let response = client.get_job_group(id).await?;
             println!(
-                "get_job_group: id={}, name={}, template={}",
-                response.id, response.name, response.template
+                "get_job_group: id={}, name={}, template={}, current_version={}",
+                response.id, response.name, response.template, response.current_version
             );
+        }
+        Command::UpdateJobGroup { id, template } => {
+            let addr = format!("http://{}:{}", args.host, args.port);
+            let mut client = CondorGrpcClient::connect(&addr).await?;
+            let response = client.update_job_group(id, template).await?;
+            println!("update_job_group: new_version={}", response.new_version);
+        }
+        Command::ListJobGroups => {
+            let addr = format!("http://{}:{}", args.host, args.port);
+            let mut client = CondorGrpcClient::connect(&addr).await?;
+            let response = client.list_job_groups().await?;
+            for g in &response.job_groups {
+                println!(
+                    "  id={}, name={}, current_version={}",
+                    g.id, g.name, g.current_version
+                );
+            }
+            if response.job_groups.is_empty() {
+                println!("no job groups");
+            }
+        }
+        Command::DeleteJobGroup { id } => {
+            let addr = format!("http://{}:{}", args.host, args.port);
+            let mut client = CondorGrpcClient::connect(&addr).await?;
+            client.delete_job_group(id).await?;
+            println!("delete_job_group: ok");
         }
         Command::CreateJob {
             group_id,
@@ -58,15 +82,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let addr = format!("http://{}:{}", args.host, args.port);
             let mut client = CondorGrpcClient::connect(&addr).await?;
             let response = client.get_job(id).await?;
-            let group = client.get_job_group(response.group_id.clone()).await?;
 
             println!(
-                "get_job: id={}, group_id={}, name={}, status={:?}",
-                response.id, response.group_id, response.name, response.status
+                "get_job: id={}, group_id={}, name={}, status={:?}, template_version={}",
+                response.id,
+                response.group_id,
+                response.name,
+                response.status,
+                response.template_version
             );
 
-            let rendered = render::render_template(&group.template, &response.parameters)?;
-            println!("--- rendered ---\n{rendered}\n----------------");
+            println!("--- parameters ---");
+            for (k, v) in &response.parameters {
+                println!("  {k}={v}");
+            }
+        }
+        Command::ListJobs { group_id } => {
+            let addr = format!("http://{}:{}", args.host, args.port);
+            let mut client = CondorGrpcClient::connect(&addr).await?;
+            let response = client.list_jobs(group_id).await?;
+            for j in &response.jobs {
+                println!(
+                    "  id={}, name={}, status={:?}, template_version={}",
+                    j.id, j.name, j.status, j.template_version
+                );
+            }
+            if response.jobs.is_empty() {
+                println!("no jobs");
+            }
+        }
+        Command::DeleteJob { id } => {
+            let addr = format!("http://{}:{}", args.host, args.port);
+            let mut client = CondorGrpcClient::connect(&addr).await?;
+            client.delete_job(id).await?;
+            println!("delete_job: ok");
         }
         Command::UpdateJobStatus { id, status } => {
             let addr = format!("http://{}:{}", args.host, args.port);
@@ -83,69 +132,49 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     return Ok(());
                 }
             };
-            let response = client.update_job_status(id, status_val).await?;
+            let response = client
+                .update_job_status(id, status_val, String::new())
+                .await?;
             println!("update_job_status: success={}", response.success);
         }
         Command::RunJobs { group_id } => {
             let addr = format!("http://{}:{}", args.host, args.port);
             let mut client = CondorGrpcClient::connect(&addr).await?;
-            let group = client.get_job_group(group_id.clone()).await?;
 
-            let pop = client.pop_job_from_group(group_id).await?;
+            let pop = client.pop_job_from_group(group_id.clone()).await?;
             if pop.job_id.is_empty() {
                 println!("No jobs in group");
                 return Ok(());
             }
 
             let job = client.get_job(pop.job_id.clone()).await?;
-            let rendered = render::render_template(&group.template, &job.parameters)?;
+
+            let template = client
+                .get_group_template(group_id.clone(), job.template_version)
+                .await?
+                .template;
+
+            let rendered = condor_common::render_template(&template, &job.parameters)?;
 
             client
-                .update_job_status(pop.job_id, JobStatus::Completed)
+                .update_job_status(pop.job_id.clone(), JobStatus::Running, group_id.clone())
                 .await?;
 
             let status = std::process::Command::new("opencode")
                 .arg("run")
                 .arg(&rendered)
                 .status()?;
-            if !status.success() {
-                eprintln!("opencode run exited with: {}", status);
-            }
-        }
-        Command::ListSessions { url } => {
-            let client = OpencodeClient::new(url);
-            let sessions = client.list_sessions().await?;
-            for session in &sessions {
-                println!("{} | {} | {}", &*session.id, session.slug, session.title);
-            }
-        }
-        Command::ListMessages { url, session_id } => {
-            use condor_common::openapi::types::{Message, Part, ToolState};
 
-            let client = OpencodeClient::new(url);
-            let messages = client.list_messages(&session_id).await?;
-            for msg in &messages {
-                let (id, role) = match &msg.info {
-                    Message::UserMessage(m) => (&*m.id as &str, "user"),
-                    Message::AssistantMessage(m) => (&*m.id as &str, "assistant"),
-                };
-                println!("--- {} ({}) ---", id, role);
-                for part in &msg.parts {
-                    match part {
-                        Part::TextPart(t) => println!("{}", t.text),
-                        Part::ReasoningPart(r) => println!("{}", r.text),
-                        Part::ToolPart(t) => {
-                            match &t.state {
-                                ToolState::Completed(c) => println!("{}", c.output),
-                                ToolState::Error(e) => println!("error: {}", e.error),
-                                ToolState::Pending(_) => println!("[pending tool: {}]", t.tool),
-                                ToolState::Running(_) => println!("[running tool: {}]", t.tool),
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                println!();
+            if status.success() {
+                client
+                    .update_job_status(pop.job_id, JobStatus::Completed, group_id.clone())
+                    .await?;
+                println!("job {} completed successfully", job.id);
+            } else {
+                eprintln!("opencode run exited with: {}", status);
+                client
+                    .update_job_status(pop.job_id, JobStatus::Failed, group_id.clone())
+                    .await?;
             }
         }
     }

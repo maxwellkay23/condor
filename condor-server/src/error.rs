@@ -10,6 +10,10 @@ pub enum CondorServerError {
     TonicTransport(#[from] tonic::transport::Error),
     #[error("Invalid job status: {0}")]
     InvalidJobStatus(String),
+    #[error("Config error: {0}")]
+    Config(String),
+    #[error("Not found: {0}")]
+    NotFound(String),
 }
 
 impl From<condor_common::CondorError> for CondorServerError {
